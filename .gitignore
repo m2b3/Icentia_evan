@@ -1,0 +1,25 @@
+# Ignore all files in the data folder
+/Data/
+/100data/
+/ecg_clean_filtered/
+/ECG_rate_annotations/
+/Test/
+.DS_store
+
+# Ignore specific file types
+process_all_fft_parallel.py
+process_all_fft.py
+rythmExclusion.csv
+Showcase.ipynb
+test.py
+visualize_global_time_series_absorption.py
+
+#environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+/myenv/
