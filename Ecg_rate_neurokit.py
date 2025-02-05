@@ -22,13 +22,12 @@ def readSubject(subjectID, dataFolder):
     - ECGTotal: an array of length 50, where each array contains the ecg_raw data
     """
     #neurokit only requires ecg data, ignoring the annotations
-    #with gzip.open(f"{dataFolder}/{subjectID:05d}_batched.pkl.gz", "rb") as file: 
-        #ECGTotal = (pickle.load(file))
-        #ECGTotal = np.array(pickle.load(file))
-    with gzip.open(f"{dataFolder}/{subjectID:05d}_batched_lbls.pkl.gz", "rb") as file: 
-        peakDictTotal = np.array(pickle.load(file))
+    with gzip.open(f"{dataFolder}/{subjectID:05d}_batched.pkl.gz", "rb") as file: 
+        ECGTotal = np.array(pickle.load(file))
+    #with gzip.open(f"{dataFolder}/{subjectID:05d}_batched_lbls.pkl.gz", "rb") as file: 
+     #   peakDictTotal = np.array(pickle.load(file))
 
-    return peakDictTotal
+    return ECGTotal
 
 def ecg_rate(data_folder, subject, fs):
     """
@@ -78,17 +77,17 @@ def process_subject(subject_id):
     """
     # here adjust data_folder to the correct directory
     # processes 50 sessions of one subject and save the ecg_rate in pkl.gzip files
-    data_folder = '100data'
+    data_folder = '/home/evan1/projects/rrg-skrishna/evan1/icentia11k'
     fs = 250
     output={}
-    try:
-        subject_data = ecg_rate(data_folder, subject_id, fs)
-        output[f"{subject_id:05d}_subject"] = subject_data
-        dataframe = pd.DataFrame(output)
-        dataframe.to_pickle(f'Test/{subject_id:05d}_ecg_rate.pkl.gz', compression='gzip') 
-    
-    except Exception as e:
-        print(f"Error processing subject {subject_id}: {e}")
+    #try:
+    subject_data = ecg_rate(data_folder, subject_id, fs)
+    output[f"{subject_id:05d}_subject"] = subject_data
+    dataframe = pd.DataFrame(output)
+    dataframe.to_pickle(f'scratch/{subject_id:05d}_ecg_rate.pkl.gz', compression='gzip') 
+
+    #except Exception as e:
+    #clprint(f"Error processing subject {subject_id}: {e}")
 
     
 
@@ -98,15 +97,14 @@ def process_all_subjects():
     processes all subjects using parallel running with cpu assigned = 10
     """
     #looping over all 11000 files using parallel running
-    subject_ids = range(100)
+    subject_ids = range(11000)
 
-    with mp.Pool(processes=10) as pool:  # Adjust number of processes as needed
+    with mp.Pool(processes=40) as pool:  # Adjust number of processes as needed
         pool.map(process_subject, subject_ids)
 
 
 if __name__ == "__main__":
-    #data_folder = os.getcwd()+"/icentia11k"
-    #data_folder = os.getcwd()+"/Data"
+
     final_dataframe = process_all_subjects()
     
     

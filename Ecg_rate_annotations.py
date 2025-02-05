@@ -102,7 +102,7 @@ def process_all_subjects():
     processes all subjects using parallel running with cpu assigned = 10
     """
     #looping over all 11000 files using parallel running
-    subject_ids = range(100)
+    subject_ids = range(10)
 
     with mp.Pool(processes=10) as pool:  # Adjust number of processes as needed
         pool.map(process_subject, subject_ids)
