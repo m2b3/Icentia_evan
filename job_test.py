@@ -1,9 +1,4 @@
 import numpy as np
-from numpy.fft import rfft, rfftfreq
-import matplotlib.pyplot as plt
-import os
-import scipy.signal as signal
-import neurokit2 as nk
 import pandas as pd
 import gzip
 import pickle
@@ -54,7 +49,7 @@ def process_all_subjects():
         pool.map(process_subject, subject_ids)
 
 if __name__ == "__main__":
-    final_dataframe = process_all_subjects()
+    process_all_subjects()
     
 
     

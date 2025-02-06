@@ -1,8 +1,4 @@
 import numpy as np
-from numpy.fft import rfft, rfftfreq
-import matplotlib.pyplot as plt
-import os
-import scipy.signal as signal
 import neurokit2 as nk
 import pandas as pd
 import gzip
