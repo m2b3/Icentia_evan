@@ -1,15 +1,27 @@
 import numpy as np
-from numpy.fft import rfft, rfftfreq
-import matplotlib.pyplot as plt
-import os
-import scipy.signal as signal
 import neurokit2 as nk
 import pandas as pd
 import gzip
 import pickle
 import multiprocessing as mp
 from Tools.AnalysisTools import *
+import warnings
 
+
+def findPeaks(annotations, N, beatTypesToExclude = []): 
+    
+    beats = annotations["btype"]
+    beatTypes = ["Q", "N", "S", "a", "V"]
+    
+    if (not any((beatType in beatTypes) for beatType in beatTypesToExclude)) and len(beatTypesToExclude): 
+        raise Exception("The types of beats to exclude are invalid, should be among Q, N, S, a, V")
+        
+    peaks = np.zeros(N, dtype = int)
+    
+    for beatType in list(set(beatTypes) - set(beatTypesToExclude)): 
+        peaks[beats[beatTypes.index(beatType)]] = 1
+    
+    return peaks
 
 def readSubject(subjectID, dataFolder): 
     """
@@ -53,23 +65,30 @@ def ecg_rate(data_folder, subject, fs):
 
     #looping over all 50 sessions of subjects, computing its ecg_rate
     for session in range(len(ecg_total)):
-        ecg_raw = np.float32(ecg_total[session])
-        annotation = (annotations_total)[session]
-        ecg_clean = nk.ecg_clean(ecg_raw, sampling_rate=250, method="neurokit")
+        try:
+            ecg_raw = np.float32(ecg_total[session])
+            annotation = (annotations_total)[session]
+            ecg_clean = nk.ecg_clean(ecg_raw, sampling_rate=250, method="neurokit")
 
-        peaks= findPeaks(annotation,len(ecg_clean))
-        rpeaks = np.where(peaks == 1)[0]
+            peaks= findPeaks(annotation,len(ecg_clean))
+            rpeaks = np.where(peaks == 1)[0]
 
-        ecg_quality = nk.ecg_quality(ecg_clean,rpeaks=rpeaks, sampling_rate=fs, method = "zhao2018")
-        
-        # if the quality of ecg_clean is "unacceptable", then update the parameters and skip this session
-        if ecg_quality == "Unacceptable":
-            session_removed.append(session)
-            number_session_removed += 1
-            continue
-        
-        ecg_rate = nk.signal_rate(rpeaks, sampling_rate=fs, desired_length=len(ecg_clean))
-        rate_total[f"session_{session:02d}"]=ecg_rate
+            ecg_quality = nk.ecg_quality(ecg_clean,rpeaks=rpeaks, sampling_rate=fs, method = "zhao2018")
+            
+            # if the quality of ecg_clean is "unacceptable", then update the parameters and skip this session
+            if ecg_quality == "Unacceptable":
+                session_removed.append(session)
+                number_session_removed += 1
+                continue
+            
+            ecg_rate = nk.signal_rate(rpeaks, sampling_rate=fs, desired_length=len(ecg_clean))
+            rate_total[f"session_{session:02d}"]=ecg_rate
+
+        except Warning as w:
+            print(f'Warning processing subject_{subject:05d}_session_{session:02d}: {w}')
+
+        except Exception as e:
+            print(f'Error processing subject_{subject:05d}_session_{session:02d}: {e}')
     
     rate_total["Removed sessions"] = session_removed
     rate_total["# sessions removed"] = number_session_removed
@@ -82,17 +101,17 @@ def process_subject(subject_id):
     """
     # here adjust data_folder to the correct directory
     # processes 50 sessions of one subject and save the ecg_rate in pkl.gzip files
-    data_folder = '100data'
+    data_folder = '/home/evan1/projects/rrg-skrishna/evan1/icentia11k'
     fs = 250
     output={}
     try:
         subject_data = ecg_rate(data_folder, subject_id, fs)
         output[f"{subject_id:05d}_subject"] = subject_data
         dataframe = pd.DataFrame(output)
-        dataframe.to_pickle(f'ECG_rate_annotations/{subject_id:05d}_ecg_rate.pkl.gz', compression='gzip') 
+        dataframe.to_pickle(f'/home/evan1/projects/rrg-skrishna/evan1/heart_rate_annotation/{subject_id:05d}_ecg_rate.pkl.gz', compression='gzip') 
     
-    except Exception as e:
-        print(f"Error processing subject {subject_id}: {e}")
+    except Exception as a:
+        print(f"Error processing subject {subject_id}: {a}")
 
     
 
@@ -102,9 +121,9 @@ def process_all_subjects():
     processes all subjects using parallel running with cpu assigned = 10
     """
     #looping over all 11000 files using parallel running
-    subject_ids = range(100)
+    subject_ids = range(11000)
 
-    with mp.Pool(processes=10) as pool:  # Adjust number of processes as needed
+    with mp.Pool(processes=60) as pool:  # Adjust number of processes as needed
         pool.map(process_subject, subject_ids)
 
 
@@ -112,5 +131,4 @@ if __name__ == "__main__":
     #data_folder = os.getcwd()+"/icentia11k"
     #data_folder = os.getcwd()+"/Data"
     final_dataframe = process_all_subjects()
-    
     
