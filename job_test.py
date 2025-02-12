@@ -49,7 +49,11 @@ def process_all_subjects():
         pool.map(process_subject, subject_ids)
 
 if __name__ == "__main__":
+<<<<<<< HEAD
     final_dataframe = process_all_subjects()
+=======
+    process_all_subjects()
+>>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
     
 
     

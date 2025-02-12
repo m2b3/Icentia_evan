@@ -99,10 +99,10 @@ def process_subject(subject_id):
         subject_data = ecg_rate(data_folder, subject_id, fs)
         output[f"{subject_id:05d}_subject"] = subject_data
         dataframe = pd.DataFrame(output)
-        dataframe.to_pickle(f'/home/evan1/projects/rrg-skrishna/evan1/heart_rate_neurokit/{subject_id:05d}_heart_rate.pkl.gz', compression='gzip') 
-
-    except Exception as a:
-        print(f"Error processing subject {subject_id}: {a}")
+        dataframe.to_pickle(f'Test/{subject_id:05d}_ecg_rate.pkl.gz', compression='gzip') 
+    
+    except Exception as e:
+        print(f"Error processing subject {subject_id}: {e}")
 
     
 
