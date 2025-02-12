@@ -2,8 +2,8 @@
 /Data/
 /100data/
 /ecg_clean_filtered/
-/ECG_rate_annotations/
-/Test/
+/heart_rate_annotation/
+/heart_rate_neurokit/
 .DS_store
 
 # Ignore specific file types
