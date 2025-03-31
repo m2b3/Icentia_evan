@@ -5,7 +5,8 @@
 /heart_rate_annotation/
 /heart_rate_neurokit/
 .DS_store
-
+.pdf
+.csv
 # Ignore specific file types
 process_all_fft_parallel.py
 process_all_fft.py

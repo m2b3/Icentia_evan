@@ -5,6 +5,7 @@ import gzip
 import pickle
 import multiprocessing as mp
 import warnings
+from sklearn.metrics import r2_score
 
 
 def readSubject(subjectID, dataFolder): 

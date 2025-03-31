@@ -16,6 +16,7 @@ from fooof.sim.gen import gen_power_spectrum
 from fooof.sim.utils import set_random_seed
 from fooof.plts.spectra import plot_spectra
 from fooof.plts.annotate import plot_annotated_model
+from sklearn.metrics import r2_score
 
 fs = 250
 
@@ -81,44 +82,47 @@ def calculate_differences(a_PSD,n_PSD):
 
     return(abs_differences)
 
-def save_psd(annotations_folder, neurokit_folder, subject, overlap,length, filter_threshold, plot=False):
-    annotation_rates=pd.read_pickle(f'{annotations_folder}/{subject:05d}_ecg_rate.pkl.gz', compression='gzip')
-    neurokit_rates=pd.read_pickle(f'{neurokit_folder}/{subject:05d}_ecg_rate.pkl.gz', compression='gzip')
+def save_psd(annotations_folder, neurokit_folder, subject, overlap, length, filter_threshold):
+    annotation_rates = pd.read_pickle(f'{annotations_folder}/{subject:05d}_ecg_rate.pkl.gz', compression='gzip')
+    neurokit_rates = pd.read_pickle(f'{neurokit_folder}/{subject:05d}_ecg_rate.pkl.gz', compression='gzip')
 
     neurokit_rows = neurokit_rates[f"{subject:05d}_subject"][:-2]
     annotation_rows = annotation_rates[f"{subject:05d}_subject"][:-2]
 
-    a_session_names = (annotation_rows.keys())
-    n_session_names = (neurokit_rows.keys())
+    a_session_names = annotation_rows.keys()
+    n_session_names = neurokit_rows.keys()
     common_session_names = list(set(a_session_names) & set(n_session_names))
 
     neurokit_rows = {key: value for key, value in neurokit_rows.items() if key in common_session_names}
     annotation_rows = {key: value for key, value in annotation_rows.items() if key in common_session_names}
-   
+
     session_numbers = sorted([int(re.search(r'\d+$', s).group()) for s in common_session_names if re.search(r'\d+$', s)])
 
     neurokit_rates = list(neurokit_rows.values())
     annotation_rates = list(annotation_rows.values())
 
-    _, annotations = readSubject(subject,"100data")
+    _, annotations = readSubject(subject, "100data")
     number_of_sessions = len(common_session_names)
 
-    session_results = {}
+    session_results_psd = {}  # Stores PSD data
+    session_results_ecg = {}  # Stores ECG rate data
+
     for session in range(number_of_sessions):
         neurokit_rate = neurokit_rates[session]
         annotation_rate = annotation_rates[session]
         annotation = annotations[session_numbers[session]]
 
         noises = find_noise(annotation, len(neurokit_rate))
-        a_windows, _ = sliding_window(annotation_rate,window_time=length, overlap=overlap, noises=noises)
-        n_windows, n_removed_windows = sliding_window(neurokit_rate,window_time=length, overlap=overlap, noises=noises)
+        a_windows, _ = sliding_window(annotation_rate, window_time=length, overlap=overlap, noises=noises)
+        n_windows, _ = sliding_window(neurokit_rate, window_time=length, overlap=overlap, noises=noises)
 
         a_segmented_rates = list(a_windows.values())
         segment_ids = list(a_windows.keys())
-
         n_segmented_rates = list(n_windows.values())
 
-        results = {}
+        results_psd = {}  # PSD results
+        results_ecg = {}  # ECG rate results
+
         for i in range(len(n_segmented_rates)):
             a_rate = a_segmented_rates[i]
             n_rate = n_segmented_rates[i]
@@ -127,12 +131,12 @@ def save_psd(annotations_folder, neurokit_folder, subject, overlap,length, filte
             if np.isnan(n_rate).any() or np.isnan(a_rate).any():
                 continue
             try:
-                a_rate_d = process_ecg_rate(a_rate, True, True, highcut = 0.35, fs=fs)
-                n_rate_d = process_ecg_rate(n_rate, True, True, highcut = 0.35, fs=fs)
+                a_rate_d = process_ecg_rate(a_rate, True, True, highcut=0.35, fs=fs)
+                n_rate_d = process_ecg_rate(n_rate, True, True, highcut=0.35, fs=fs)
 
                 a_freqs, a_fft = compute_fft(a_rate_d, fs)
                 n_freqs, n_fft = compute_fft(n_rate_d, fs)
-                
+
                 valid_idx = (a_freqs > 0) & (a_freqs <= 20)
                 freqs = a_freqs[valid_idx]
                 a_fft = np.array(a_fft[valid_idx])
@@ -140,104 +144,50 @@ def save_psd(annotations_folder, neurokit_folder, subject, overlap,length, filte
 
                 differences = a_fft - n_fft
                 abs_difference = np.sum(np.abs(differences))
-                
+
                 if abs_difference <= filter_threshold:
-                    results[segment] = {
+                    # Store PSD data
+                    results_psd[segment] = {
                         "freqs": freqs,
                         "fft": a_fft
-                        }
-                    
-                    session_results[f'Session_{session_numbers[session]:02d}'] = results
-        
-                    if plot:
-                        time = (np.arange(len(a_rate))/fs)/60
-                        # Create a single figure with 4 subplots
-                        plt.figure(figsize=(20, 10))
+                    }
 
-                        # Top-left subplot: (annotations) ECG Rate
-                        plt.subplot(2, 2, 1)
-                        plt.plot(time, a_rate, color='blue')
-                        plt.xlabel('Time (minutes)')
-                        plt.ylabel('ECG Rate')
-                        plt.title(f'(annotations) ECG Rate (Subject_{subject:05d}_Session_{session_numbers[session]:02d}_Segment_{segment})')
-                        plt.grid(True)
+                    # Store corresponding ECG rate data
+                    results_ecg[segment] = {
+                        "ecg_rate_annotation": a_rate,
+                        "ecg_rate_neurokit": n_rate
+                    }
 
-                        # Top-right subplot: (annotations) Power Spectral Density
-                        plt.subplot(2, 2, 2)
-                        plt.plot(a_freqs, a_fft, color='red')
-                        plt.xlabel('Frequency (Hz)')
-                        plt.ylabel('Magnitude')
-                        plt.title(f'(annotations) Power Spectral Density (Subject_{subject:05d}_Session_{session_numbers[session]:02d}_Segment_{segment})')
-                        plt.xlim(0, 0.35)
-                        plt.grid(True)
+                    session_results_psd[f'Session_{session_numbers[session]:02d}'] = results_psd
+                    session_results_ecg[f'Session_{session_numbers[session]:02d}'] = results_ecg
 
-                        # Bottom-left subplot: (neurokit) ECG Rate
-                        plt.subplot(2, 2, 3)
-                        plt.plot(time, n_rate, color='blue')
-                        plt.xlabel('Time (minutes)')
-                        plt.ylabel('ECG Rate')
-                        plt.title(f'(neurokit) ECG Rate (Subject_{subject:05d}_Session_{session_numbers[session]:02d}_Segment_{segment})')
-                        plt.grid(True)
-
-                        # Bottom-right subplot: (neurokit) Power Spectral Density
-                        plt.subplot(2, 2, 4)
-                        plt.plot(n_freqs, n_fft, color='red')
-                        plt.xlabel('Frequency (Hz)')
-                        plt.ylabel('Magnitude')
-                        plt.title(f'(neurokit) Power Spectral Density (Subject_{subject:05d}_Session_{session_numbers[session]:02d}_Segment_{segment})')
-                        plt.xlim(0, 0.35)
-                        plt.grid(True)
-                        # Adjust layout to prevent overlapping
-                        plt.tight_layout()
-
-                        # Show the figure
-                        plt.show()
-                        # Print the absolute differences
-                        print(f"total absolute differnces: {abs_difference}")
-                    
-                session_results[f"Session_{session_numbers[session]:02d}"] = results
             except:
-                print(f'error proceesing (Subject_{subject:05d}_Session_{session_numbers[session]:02d}_Segment_{segment})')
-            
-                
-        if plot:
-            plt.figure(figsize=(16, 5))
-            whole_time = (np.arange(len(neurokit_rate)) /fs)/ 60
-            plt.plot(whole_time, neurokit_rate, color='blue', label='ECG_rate Data')
+                print(f'Error processing (Subject_{subject:05d}_Session_{session_numbers[session]:02d}_Segment_{segment})')
 
-            for removed in n_removed_windows.keys():
-                start = removed * (length * (1 - overlap))
-                end = start + length
-                plt.axvspan(start, end, color='red', alpha=0.3)
-            
-            plt.xlabel('Time (minutes)')
-            plt.ylabel('ECG rate Data')
-            plt.title(f'Entire Heart Rate Data (Subject_{subject:05d}, Session {session_numbers[session]}) with Removed Segments Highlighted')
-            plt.legend()
-            plt.grid(True)
-            plt.show()
-        
-    
-            
-    results_df = pd.DataFrame(session_results)
-    return results_df#session_results
+    # Convert to DataFrames
+    results_df_psd = pd.DataFrame(session_results_psd)
+    results_df_ecg = pd.DataFrame(session_results_ecg)
+
+    return results_df_psd, results_df_ecg  # Return both PSD and ECG rate data
 
 
-def apply_fooof(freqs, psd):
+
+def apply_fooof(freqs, psd, freq_range =[0, 0.35]):
     """Apply FOOOF model to a given power spectrum."""
     fm = FOOOF(peak_width_limits=[0.03, 0.05], max_n_peaks=5, min_peak_height=0.2,
                peak_threshold=2.0, aperiodic_mode='knee')
-    fm.fit(freqs, psd, [0.01, 0.5])
+    fm.fit(freqs, psd, freq_range)
     return fm
-
+'''
+## for selection
 def process_subject(subject_id):
     """Process a single subject, ensuring at least 12 segments with PSDs."""
     try:
         # Extract PSD results for the subject
-        results_df = save_psd(annotations_folder='heart_rate_annotation',
+        results_df, heart_rate_df = save_psd(annotations_folder='heart_rate_annotation',
                               neurokit_folder="heart_rate_neurokit",
                               subject=subject_id, overlap=0, length=5,
-                              filter_threshold=2e5, plot=False)
+                              filter_threshold=2e5)
 
         if results_df.empty:
             print(f"No valid data for Subject_{subject_id:05d}")
@@ -248,7 +198,7 @@ def process_subject(subject_id):
         available_sessions = list(results_df.columns)
         random.shuffle(available_sessions)
 
-        while available_sessions and len(selected_segments) < 12:
+        while available_sessions and len(selected_segments) < 6:
             session = available_sessions.pop()
             session_data = results_df[session].dropna().to_dict()  # Convert to dictionary
             for segment, data in session_data.items():
@@ -258,15 +208,128 @@ def process_subject(subject_id):
                 data["segment"] = segment
                 selected_segments.append(data)
 
-        if len(selected_segments) < 12:
+        if len(selected_segments) < 6:
             print(f"Not enough valid segments for Subject_{subject_id:05d}")
             return None
 
-        return subject_id, selected_segments[:12]
+        return subject_id, selected_segments[:6]
+
+    except Exception as e:
+        print(f"Error processing Subject_{subject_id:05d}: {e}")
+        return None'''
+'''
+def process_subject(subject_id):
+    """Process a single subject, ensuring at least 12 segments with PSDs."""
+    try:
+        # Extract PSD results for the subject
+        results_df, heart_rate_df = save_psd(annotations_folder='heart_rate_annotation',
+                              neurokit_folder="heart_rate_neurokit",
+                              subject=subject_id, overlap=0, length=5,
+                              filter_threshold=2e5)
+
+        if results_df.empty:
+            print(f"No valid data for Subject_{subject_id:05d}")
+            return None
+
+        # Randomly select sessions until at least 12 segments are obtained
+        selected_segments = []
+        heart_rate_segments = []
+        available_sessions = list(results_df.columns)
+        random.shuffle(available_sessions)
+
+        while available_sessions and len(selected_segments) < 6:
+            session = available_sessions.pop()
+            session_data = results_df[session].dropna().to_dict()  # Convert to dictionary
+            session_hr_data = heart_rate_df[session].dropna().to_dict()  # Heart rate data
+
+            for segment, data in session_data.items():
+                if len(selected_segments) >= 6:
+                    break
+
+                psd_data = session_data[segment]
+                hr_data = session_hr_data[segment]
+
+
+                psd_data["session"] = session
+                psd_data["segment"] = segment
+                hr_data["session"] = session
+                hr_data["segment"] = segment
+
+                selected_segments.append(psd_data)
+                heart_rate_segments.append(hr_data)
+        
+
+        if len(selected_segments) < 6:
+            print(f"Not enough valid segments for Subject_{subject_id:05d}")
+            return None
+
+        return subject_id, selected_segments[:6], heart_rate_segments[:6]
 
     except Exception as e:
         print(f"Error processing Subject_{subject_id:05d}: {e}")
         return None
+'''
+import random
+
+import random
+
+def process_subject(subject_id):
+    """Process a single subject, ensuring at least 6 segments with PSDs and heart rate data."""
+    try:
+        # Extract PSD and heart rate results for the subject
+        results_df, heart_rate_df = save_psd(annotations_folder='heart_rate_annotation',
+                                             neurokit_folder="heart_rate_neurokit",
+                                             subject=subject_id, overlap=0, length=5,
+                                             filter_threshold=2e5)
+
+        if results_df.empty:
+            print(f"No valid data for Subject_{subject_id:05d}")
+            return None
+
+        # Randomly select sessions until at least 6 segments are obtained
+        selected_segments = []
+        selected_heart_rates = []
+        available_sessions = list(results_df.columns)
+        random.shuffle(available_sessions)
+
+        while available_sessions and len(selected_segments) < 6:
+            session = available_sessions.pop()
+            
+            # Convert session data to dictionaries
+            session_psd_data = results_df[session].dropna().to_dict()  # PSD data
+            session_hr_data = heart_rate_df[session].dropna().to_dict()  # Heart rate data
+
+            for segment in session_psd_data.keys():
+                if len(selected_segments) >= 6:
+                    break
+
+                # Retrieve PSD and heart rate data for this segment
+                psd_data = session_psd_data[segment]
+                hr_data = session_hr_data.get(segment, None)  # Get HR data safely
+
+                # Attach session & segment identifiers
+                psd_data["session"] = session
+                psd_data["segment"] = segment
+
+                if hr_data:
+                    hr_data["session"] = session
+                    hr_data["segment"] = segment
+
+                selected_segments.append(psd_data)
+                selected_heart_rates.append(hr_data)
+
+        if len(selected_segments) < 6:
+            print(f"Not enough valid segments for Subject_{subject_id:05d}")
+            return None
+
+        return subject_id, selected_segments[:6], selected_heart_rates[:6]
+
+    except Exception as e:
+        print(f"Error processing Subject_{subject_id:05d}: {e}")
+        return None
+
+
+
 
 # Main function to process subjects and generate a single PDF
 def generate_pdf_for_all_subjects(subject_ids, output_pdf="fooof_analysis.pdf"):
@@ -278,26 +341,52 @@ def generate_pdf_for_all_subjects(subject_ids, output_pdf="fooof_analysis.pdf"):
             if result is None:
                 continue
 
-            subject_id, selected_segments = result
-            fig, axes = plt.subplots(4, 3, figsize=(15, 20))  # 4 rows, 3 columns (12 plots per page)
+            subject_id, selected_segments, heart_rate_segments = result
+            fig, axes = plt.subplots(6, 2, figsize=(15, 30))  # 4 rows, 3 columns (12 plots per page)
             axes = axes.flatten()  # Convert 2D axes array to a 1D list
 
             for i, segment in enumerate(selected_segments):
                 freqs = np.array(segment["freqs"])
+                heart_rate_segment = heart_rate_segments[i]
                 power_spectrum = np.array(segment["fft"])
 
                 # Apply frequency cutoff at 0.35 Hz
-                valid_idx = (freqs > 0) & (freqs <= 0.35)
-                freqs = freqs[valid_idx]
-                power_spectrum = power_spectrum[valid_idx]
+        
 
-                fm = apply_fooof(freqs, power_spectrum)
+                fm = apply_fooof(freqs, power_spectrum, freq_range=[0.001, 0.5])
                 if fm is None:
                     continue  # Skip invalid segments
+                r_squared = fm.r_squared_
+                offset, knee, phi= fm.aperiodic_params_
+                aper_r = r2_score(fm.power_spectrum, fm._ap_fit)
+                peaks = fm.get_params('peak_params')
+                #max_peak_0_15 = max([peak for peak in peaks if 0.0 <= peak[0] <= 0.15], key=lambda x: x[1], default=None)
+                #max_peak_15_35 = max([peak for peak in peaks if 0.15 <= peak[0] <= 0.35], key=lambda x: x[1], default=None)
 
-                ax = axes[i]  # Get the subplot
-                fm.report(freqs, power_spectrum, [0.01, 0.35], ax=ax)  # Use full FOOOF report plot
-                ax.set_title(f"Subject {subject_id:05d}, Session {segment['session']}, Segment {segment['segment']}")
+
+                ax_psd = axes[i*2]  # Get the subplot
+                fm.plot(ax = ax_psd, add_legend=False)
+                ax_psd.set_title(f"Subject {subject_id:05d}, {segment['session']}, {segment['segment']}")
+                ax_psd.text(0.05, 0.05, f'R² = {r_squared:.3f}', 
+                        transform=ax_psd.transAxes, fontsize=12, verticalalignment='bottom')
+                ax_psd.text(0.05, 0.10, f'R² aperiodic = {aper_r:.3f}',
+                        transform=ax_psd.transAxes, fontsize=12, verticalalignment='bottom')
+                ax_psd.text(0.05, 0.15, f'offset = {offset:.3f}, phi = {phi:.3f}',
+                        transform=ax_psd.transAxes, fontsize=12, verticalalignment='bottom')
+                #ax_psd.text(0.05, 0.20, f'max_peak_0 to 0.15 = {max_peak_0_15}, max_peak 0.15 to 0.35 = {max_peak_15_35}',
+                        #transform=ax_psd.transAxes, fontsize=12, verticalalignment='bottom')
+                
+                # heart rate plot
+                ax_hr = axes[i * 2 + 1]  # Every odd index (1, 3, 5, ...)
+                time = np.arange(len(heart_rate_segment["ecg_rate_annotation"])) / fs 
+
+                ax_hr.plot(time, heart_rate_segment["ecg_rate_neurokit"], color="blue")
+
+                ax_hr.set_title(f"Heart Rate - Subject {subject_id:05d}, {segment['session']}, {segment['segment']}")
+                ax_hr.set_xlabel("Time (seconds)")
+                ax_hr.set_ylabel("ECG Rate")
+                ax_hr.legend()
+                ax_hr.grid(True)
 
             plt.tight_layout()
             pdf.savefig(fig)  # Save the whole figure (all 12 plots)

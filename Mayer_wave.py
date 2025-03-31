@@ -6,11 +6,8 @@ import pandas as pd
 import multiprocessing as mp
 from Tools.ReadPatientData import readSubject
 from Tools.AnalysisTools import *
-<<<<<<< HEAD
 from numpy.fft import rfft, rfftfreq
-=======
 from scipy.fft import rfft, rfftfreq
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
 import scipy.signal as signal
 
 from concurrent.futures import ProcessPoolExecutor
@@ -24,19 +21,6 @@ from fooof.plts.annotate import plot_annotated_model
 fs = 250
 
 def process_ecg_rate(ecg_rate, detrend, filter_enabled, highcut, fs):
-<<<<<<< HEAD
-=======
-    '''
-    pre-processing ecg_rate, detrend, filter, highcut
-    
-    parameters:
-    - ecg_rate: the ecg rate beings processed
-    - detrend: boolean values, determines to detrend or not
-    - filter_enabled: boolean values, determines to filter or not
-    - highcut: filter highcut
-    - fs: sampling frequency
-    '''
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
     if detrend:
         ecg_rate = signal.detrend(ecg_rate)
 
@@ -49,12 +33,6 @@ def process_ecg_rate(ecg_rate, detrend, filter_enabled, highcut, fs):
     return ecg_rate
 
 def compute_fft(ecg_rate, fs):
-<<<<<<< HEAD
-=======
-    '''
-    computes the fft given ecg_rate and fs
-    '''
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
     N = len(ecg_rate)
     fft_values = np.abs(rfft(ecg_rate))
     freqs = rfftfreq(N, 1 / fs)
@@ -65,19 +43,6 @@ def compute_fft(ecg_rate, fs):
     return freqs, smooth_fft
 
 def sliding_window(data, window_time, overlap, noises, sampling_frequency=250):
-<<<<<<< HEAD
-
-=======
-    '''
-    splits a session into segemnts given the desired time, overalp, and remove all the segments with noises
-
-    parameters:
-    - data: the session being segmented
-    - window_time: time of the window in minutes
-    - overlap: percent overlap you want (from 0 to 1)
-    - noises: an array of 0 and 1 indicating the position of noise
-    '''
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
     window_length = int(window_time * 60 * sampling_frequency)
     step_size = int(window_length * (1 - overlap))
     
@@ -176,12 +141,7 @@ def save_psd(annotations_folder, neurokit_folder, subject, overlap,length, filte
                 if abs_difference <= filter_threshold:
                     results[segment] = {
                         "freqs": a_freqs,
-<<<<<<< HEAD
                         "fft": a_fft
-=======
-                        "a_fft": a_fft,
-                        "n_fft": n_fft
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
                         }
                     
                     session_results[f'Session_{session_numbers[session]:02d}'] = results
@@ -256,13 +216,8 @@ def save_psd(annotations_folder, neurokit_folder, subject, overlap,length, filte
         
     
             
-<<<<<<< HEAD
     results_df = pd.DataFrame(session_results)
     return results_df
-=======
-    results_df = pd.DataFrame(session_results).T
-    return results_df#session_results
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
 
 def mayer_wave_counts(PSDs, show=False):
     fm = FOOOF(peak_width_limits=[0.02, 0.06], max_n_peaks=5, min_peak_height=0.2,
@@ -309,12 +264,6 @@ def mayer_wave_counts(PSDs, show=False):
 
     return total_valid_psds, mayer_wave_count, segments_id
 
-<<<<<<< HEAD
-=======
-
-
-
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
 def process_subject(subject_id):
     """ Function to process each subject in parallel. """
     try:
@@ -328,13 +277,6 @@ def process_subject(subject_id):
      
 
 if __name__ == "__main__":
-<<<<<<< HEAD
-    subject_ids = list(range(11000))  
-
-    with ProcessPoolExecutor() as executor:
-        results = list(executor.map(process_subject, subject_ids))
-
-=======
     subject_ids = list(range(100))  # Define subject IDs
 
     # Use ProcessPoolExecutor for parallel execution
@@ -342,45 +284,7 @@ if __name__ == "__main__":
         results = list(executor.map(process_subject, subject_ids))
 
     # Convert results into a DataFrame
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
     results_df = pd.DataFrame(results, columns=['Subject_ID', 'Total_PSDs', 'Mayer_Wave_PSDs', 'Segments_ID'])
     
     # Save to CSV
     results_df.to_csv("mayer_wave_results.csv", index=False)
-<<<<<<< HEAD
-=======
-
-'''
-if __name__ == "__main__":
-    subject_ids = []
-    total_psd_nums = []
-    mayer_wave_nums = []
-    segments_ids = []
-
-    for subject_id in range(10):
-        result = save_psd(annotations_folder='ECG_rate_annotations', neurokit_folder="Test", subject=subject_id,overlap=0, length=5, filter_threshold=2e5, plot=False)
-        total_psd_num, mayer_wave_num, segments_id= mayer_wave_counts(PSDs = result, show = False)
-
-        # Append results
-        subject_ids.append(subject_id)
-        total_psd_nums.append(total_psd_num)
-        mayer_wave_nums.append(mayer_wave_num)
-        segments_ids.append(segments_id)  
-
-        print(subject_id)
-        print(total_psd_num)
-        print(mayer_wave_num)
-        print(segments_id)
-
-
-    results_df = pd.DataFrame({
-        'Subject_ID': subject_ids,
-        'Total_PSDs': total_psd_nums,
-        'Mayer_Wave_PSDs': mayer_wave_nums,
-        'Segments_ID': segments_ids  
-    })
-
-    results_df.to_csv("mayer_wave_results.csv", index=False)
-
-'''
->>>>>>> 46f89d50f8a11333452c8410219a5417b7312cdd
