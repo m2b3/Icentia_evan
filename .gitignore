@@ -1,6 +1,7 @@
 # Ignore all files in the data folder
 /Data/
 /100data/
+/fooof_results/
 /ecg_clean_filtered/
 /heart_rate_annotation/
 /heart_rate_neurokit/
@@ -16,6 +17,9 @@ rythmExclusion.csv
 Showcase.ipynb
 test.py
 visualize_global_time_series_absorption.py
+fooof_results_all_subjects_serial.pkl
+fooof_results.pkl
+
 
 #environments
 .env

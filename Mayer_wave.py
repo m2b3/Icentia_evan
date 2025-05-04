@@ -12,7 +12,7 @@ import scipy.signal as signal
 
 from concurrent.futures import ProcessPoolExecutor
 
-from fooof import FOOOF
+from fooof_result import FOOOF
 from fooof.sim.gen import gen_power_spectrum
 from fooof.sim.utils import set_random_seed
 from fooof.plts.spectra import plot_spectra
